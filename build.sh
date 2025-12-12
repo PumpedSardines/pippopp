@@ -17,13 +17,13 @@ if [ $? -ne 0 ]; then
 fi
 
 if [ "$RELEASE" = true ]; then
-  cp ./target/riscv32imac-unknown-none-elf/debug/osf ./main.elf
-  objdump -D ./target/riscv32imac-unknown-none-elf/release/osf  > ./main.elf.txt
-  objcopy -O binary ./target/riscv32imac-unknown-none-elf/release/osf ./main.bin
+  cp ./target/riscv32imac-unknown-none-elf/debug/pippopp ./main.elf
+  objdump -D ./target/riscv32imac-unknown-none-elf/release/pippopp  > ./main.elf.txt
+  objcopy -O binary ./target/riscv32imac-unknown-none-elf/release/pippopp ./main.bin
 else
-  cp ./target/riscv32imac-unknown-none-elf/debug/osf ./main.elf
-  objdump -D ./target/riscv32imac-unknown-none-elf/debug/osf  > ./main.elf.txt
-  objcopy -O binary ./target/riscv32imac-unknown-none-elf/debug/osf ./main.bin
+  cp ./target/riscv32imac-unknown-none-elf/debug/pippopp ./main.elf
+  objdump -D ./target/riscv32imac-unknown-none-elf/debug/pippopp  > ./main.elf.txt
+  objcopy -O binary ./target/riscv32imac-unknown-none-elf/debug/pippopp ./main.bin
 fi
 
 rm -rf build

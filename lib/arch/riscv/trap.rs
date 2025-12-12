@@ -1,5 +1,7 @@
 use core::arch::asm;
 use core::fmt::Write;
+use core::sync::atomic::AtomicUsize;
+use core::sync::atomic::Ordering::SeqCst;
 
 use crate::arch::riscv::csr::{Scause, Sepc, Sscratch, Sstatus};
 use crate::arch::riscv::environment::riscv32im::EnvironmentRiscv32im;
@@ -12,6 +14,27 @@ use crate::kernel::Kernel;
 #[cfg(target_pointer_width = "32")]
 pub unsafe fn trap_set_kernel(kernel: *mut Kernel<EnvironmentRiscv32im>) {
     Sscratch::new(kernel.addr() as u32).store();
+}
+
+#[no_mangle]
+#[inline(never)]
+pub extern "C" fn waiting_trap_entry(kernel: *const Kernel<EnvironmentRiscv32im>) -> ! {
+    let kernel = unsafe { &*kernel };
+    let scause = Scause::load();
+    match scause {
+        Scause::Interrupt(code) => match code {
+            5 => {
+                timer::schedule();
+                kernel.switch_from_waiting();
+            }
+            _ => {
+                panic!("Unknown interrupt code: {}", code);
+            }
+        },
+        _ => {
+            panic!("Waiting kernel trap called with scause: {:?}", scause);
+        }
+    }
 }
 
 #[no_mangle]

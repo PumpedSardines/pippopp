@@ -35,7 +35,9 @@ pub struct Kernel<ENV: Environment> {
     // These 2 need to be here due to asm
     pub scratch: UnsafeCell<[usize; 8]>,
     pub stack: UnsafeCell<*mut u8>,
+    pub waiting: Cell<bool>,
 
+    pub waiting_stack: *mut u8,
     pub current_running: RefCell<Option<Task<ENV>>>,
     pub scheduler: Arc<Mutex<Scheduler<ENV>>>,
     pub core: usize,
@@ -47,12 +49,60 @@ impl<ENV: Environment> Kernel<ENV> {
             core,
             scratch: UnsafeCell::new([0; 8]),
             stack: UnsafeCell::new(core::ptr::null_mut()),
+            waiting: Cell::new(true),
+            waiting_stack: Stack::new().get_base() as *mut u8,
             current_running: RefCell::new(None),
             scheduler,
         }
     }
 
     pub fn init(&self) {}
+
+    pub fn wfi(&self) -> ! {
+        self.waiting.replace(true);
+        unsafe { *self.stack.get() = self.waiting_stack };
+        ENV::Dispatch::activate_irq();
+        unsafe {
+            asm!("wfi", options(noreturn));
+        }
+    }
+
+    pub fn switch_from_waiting(&self) -> ! {
+        ENV::Dispatch::deactivate_irq();
+        let new_frame = {
+            let (running_task, frame) = {
+                let mut scheduler = self.scheduler.lock();
+                let new_task = match scheduler.next_task(self.core) {
+                    Some(task) => task,
+                    None => {
+                        drop(scheduler);
+                        self.wfi();
+                    }
+                };
+                let new_process = new_task.process.try_lock().unwrap();
+                let frame = new_task.frame.clone();
+
+                // Activate the page table of the running process
+                unsafe {
+                    ENV::PageTable::activate(&new_process.memory.page_table);
+                    self.stack.get().write(new_task.stack.get_base() as *mut u8);
+                }
+                drop(new_process);
+                (new_task, frame)
+            };
+
+            self.current_running.replace(Some(running_task));
+            self.waiting.replace(false);
+            frame
+        };
+        unsafe {
+            // TODO: Include this in the frame instead of hard coded here
+            let mut sstatus = Sstatus::load();
+            sstatus.SPIE = false;
+            sstatus.store();
+            ENV::Dispatch::dispatch(&new_frame);
+        }
+    }
 
     pub fn context_switch(&self, old_frame: &ENV::Frame) -> ! {
         ENV::Dispatch::deactivate_irq();
@@ -68,8 +118,14 @@ impl<ENV: Environment> Kernel<ENV> {
                     None => {}
                 };
 
-                let new_task = scheduler.next_task(self.core);
-                let new_task = new_task.unwrap();
+                let new_task = match scheduler.next_task(self.core) {
+                    Some(task) => task,
+                    None => {
+                        drop(running_task);
+                        drop(scheduler);
+                        self.wfi();
+                    }
+                };
                 let new_process = new_task.process.try_lock().unwrap();
                 let frame = new_task.frame.clone();
 
@@ -113,7 +169,14 @@ impl<ENV: Environment> Kernel<ENV> {
 
         let frame = {
             let mut scheduler = self.scheduler.lock();
-            let task = scheduler.next_task(self.core).unwrap();
+            let task = match scheduler.next_task(self.core) {
+                Some(task) => task,
+                None => {
+                    println!("NO NEXT TASK");
+                    drop(scheduler);
+                    self.wfi();
+                }
+            };
 
             {
                 let process = task.process.try_lock().unwrap();
@@ -124,6 +187,7 @@ impl<ENV: Environment> Kernel<ENV> {
             }
             let frame = task.frame.clone();
             self.current_running.replace(Some(task));
+            self.waiting.replace(false);
             frame
         };
 

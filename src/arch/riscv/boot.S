@@ -49,6 +49,15 @@ _irq_request_riscv32im:
   csrrw sp, sscratch, sp
   // Store the stack pointer on the scratch
   sw sp, 3*4(t1)
+
+  lw t2, 9*4(t1) // Load if we are waiting
+  beqz t2, 1f
+  // If we are waiting, we only need to restore the stack, no other info is relevant
+  lw sp, 8*4(t1) // Load the stack pointer from the kernel
+  // Load the kernel pointer into first argument
+  mv a0, t1
+  call waiting_trap_entry
+1:
   
   bnez t0, 1f // Jump if supervisor mode
   // Load the stack pointer from the kernel

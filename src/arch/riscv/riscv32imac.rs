@@ -52,13 +52,13 @@ pub extern "C" fn kernel_main(a0: u32, a1: u32, a2: u32) -> ! {
 
     let mut scheduler = Scheduler::<EnvironmentRiscv32im>::new();
     scheduler.new_test_task(0, A_PROGRAM);
-    scheduler.new_test_task(1, A_PROGRAM);
-    scheduler.new_test_task(2, B_PROGRAM);
-    scheduler.new_test_task(3, B_PROGRAM);
-    scheduler.new_test_task(4, A_PROGRAM);
-    scheduler.new_test_task(5, A_PROGRAM);
-    scheduler.new_test_task(6, B_PROGRAM);
-    scheduler.new_test_task(7, B_PROGRAM);
+    scheduler.new_test_task(1, B_PROGRAM);
+    // scheduler.new_test_task(2, B_PROGRAM);
+    // scheduler.new_test_task(3, B_PROGRAM);
+    // scheduler.new_test_task(4, A_PROGRAM);
+    // scheduler.new_test_task(5, A_PROGRAM);
+    // scheduler.new_test_task(6, B_PROGRAM);
+    // scheduler.new_test_task(7, B_PROGRAM);
     // scheduler.new_test_task(2, PRIME_PROGRAM);
     // scheduler.new_test_task(2, PRIME_PROGRAM);
 
@@ -91,7 +91,7 @@ pub extern "C" fn kernel_main(a0: u32, a1: u32, a2: u32) -> ! {
             trampoline_stack as u32,
         )
         .unwrap();
-        if amount_started == 4 {
+        if amount_started == 1 {
             writeln!(writer, "Started all harths").unwrap();
             break;
         }
@@ -117,10 +117,6 @@ pub extern "C" fn harth_entrypoint_trampoline(other: u32, opaque: u32) -> ! {
 
 #[no_mangle]
 pub extern "C" fn harth_entrypoint(core: u32, opaque: u32) -> ! {
-    use pippopp::arch::riscv as r32;
-    let mut writer = r32::sbi::debug_console::SbiWriter;
-    writeln!(writer, "Here").unwrap();
-
     let mut sstatus = Sstatus::load();
     sstatus.SUM = true;
     sstatus.SIE = false;
